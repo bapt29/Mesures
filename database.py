@@ -1,0 +1,120 @@
+import os
+import sys
+import sqlite3
+
+
+class Database:
+    __shared_state = None
+
+    def __init__(self, database_name, sql_script_name, database_path=None):
+        if self.__shared_state is None:
+            if database_path is not None and sys.path.exists(database_path):
+                os.chdir(database_path)
+
+            try:
+                self.db = sqlite3.connect(database_name)
+
+            except sqlite3.Error as e:
+                print("Error: %s :" % e.args[0])
+                sys.exit()
+
+            else:
+                self.init_database(sql_script_name)
+                self.db.row_factory = sqlite3.Row
+                self.c = self.db.cursor()
+
+            self.__shared_state = self.__dict__
+        else:
+            self.__dict__ = self.__shared_state
+
+    def __del__(self):
+        self.db.close()
+
+    def init_database(self, script_name):
+        try:
+            file = open(script_name, 'r')
+
+        except IOError:
+            print("Error: SQL file does not exist")
+            sys.exit()
+        else:
+            script = file.read()
+
+        finally:
+            if file is not None:
+                file.close()
+
+        try:
+            self.db.executescript(script)
+
+        except sqlite3.OperationalError:
+            print("The tables already exist")
+
+        else:
+            self.db.commit()
+
+    def write_entry(self, table, **kwargs):
+
+        columns = ', '.join(kwargs.keys())
+        placeholders = ':'+', :'.join(kwargs.keys())
+
+        sql = 'INSERT INTO %s (%s) VALUES (%s)' % (table, columns, placeholders)
+
+        try:
+            self.c.execute(sql, kwargs)
+
+        except sqlite3.Error as e:
+            print("Error: %s :" % e.args[0])
+
+        else:
+            self.db.commit()
+
+    def write_entries(self, table, entries_list):
+
+        for entry in entries_list:
+
+            columns = ', '.join(entry.keys())
+            placeholders = ':' + ', :'.join(entry.keys())
+
+            sql = 'INSERT INTO %s (%s) VALUES (%s)' % (table, columns, placeholders)
+
+            try:
+                self.c.execute(sql, entry)
+
+            except sqlite3.Error as e:
+                print("Error: %s :" % e.args[0])
+
+            else:
+                self.db.commit()
+
+    def read_entry(self, table, columns, conditions):
+
+        tab = []
+        data = None
+        data_dict = {}
+
+        for key, value in conditions.items():
+            if type(value) is str:
+                tab.insert(0, str(key) + ' = ' + '"' + str(value) + '"')
+            else:
+                tab.insert(0, str(key) + ' = ' + str(value))
+
+        columns = ', '.join(columns)
+        conditions = ' AND '.join(conditions)
+
+        sql = 'SELECT %s FROM %s WHERE %s' % (columns, table, conditions)
+
+        try:
+            query = self.c.execute(sql)
+
+        except sqlite3.Error as e:
+            print("Error: %s :" % e.args[0])
+
+        else:
+            data = self.c.fetchone()
+
+            if query == 1:
+                for key in data.keys():
+                    data_dict[key] = data[key]
+
+        return data_dict
