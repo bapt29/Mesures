@@ -93,14 +93,15 @@ class Database:
         data = None
         data_dict = {}
 
+        columns = ', '.join(columns)
+
         for key, value in conditions.items():
             if type(value) is str:
-                tab.insert(0, str(key) + ' = ' + '"' + str(value) + '"')
+                tab.append('%s = "%s"' % (key, value))
             else:
-                tab.insert(0, str(key) + ' = ' + str(value))
+                tab.append('%s = %s' % (key, str(value)))
 
-        columns = ', '.join(columns)
-        conditions = ' AND '.join(conditions)
+        conditions = ' AND '.join(tab)
 
         sql = 'SELECT %s FROM %s WHERE %s' % (columns, table, conditions)
 
@@ -113,8 +114,7 @@ class Database:
         else:
             data = self.c.fetchone()
 
-            if query == 1:
-                for key in data.keys():
-                    data_dict[key] = data[key]
+            for key in data.keys():
+                data_dict[key] = data[key]
 
         return data_dict
