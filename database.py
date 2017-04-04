@@ -53,6 +53,7 @@ class Database:
         else:
             self.db.commit()
 
+    # useful or not?
     def write_entry(self, table, **kwargs):
 
         columns = ', '.join(kwargs.keys())
@@ -104,6 +105,47 @@ class Database:
         conditions = ' AND '.join(tab)
 
         sql = 'SELECT %s FROM %s WHERE %s' % (columns, table, conditions)
+
+        try:
+            query = self.c.execute(sql)
+
+        except sqlite3.Error as e:
+            print("Error: %s :" % e.args[0])
+
+        else:
+            data = self.c.fetchone()
+
+            for key in data.keys():
+                data_dict[key] = data[key]
+
+        return data_dict
+
+    def read_entries(self, table, columns, conditions=None, limit=None, offset=None):
+        data = None
+        data_dict = {}
+        sql = ''
+
+        columns = ', '.join(columns)
+
+        if conditions is not None:
+            tab = []
+
+            for key, value in conditions.items():
+                if type(value) is str:
+                    tab.append('%s = "%s"' % (key, value))
+                else:
+                    tab.append('%s = %s' % (key, str(value)))
+
+            conditions = ' AND '.join(tab)
+
+            sql = 'SELECT %s FROM %s WHERE %s' % (columns, table, conditions)
+        else:
+            sql = 'SELECT %s FROM %s' % (columns, table)
+
+            if limit is not None:
+                sql += ' LIMIT %s' % (str(limit))
+            if offset is not None:
+                sql += ' OFFSET %s' % (str(offset))
 
         try:
             query = self.c.execute(sql)
