@@ -157,3 +157,25 @@ class Database:
                     data_list[len(data_list)-1][key] = data[key]
 
         return data_list
+
+    def increment_entry(self, table, column, conditions):
+        tab = []
+
+        for key, value in conditions.items():
+            if type(value) is str:
+                tab.append('%s = "%s"' % (key, value))
+            else:
+                tab.append('%s = %s' % (key, str(value)))
+
+        conditions = ' AND '.join(tab)
+
+        sql = 'UPDATE %s SET %s = %s + 1 WHERE %s' % (table, column, column, conditions)
+
+        try:
+            query = self.c.execute(sql)
+
+        except sqlite3.Error as e:
+            print("Error: %s :" % e.args[0])
+
+        else:
+            self.db.commit()
