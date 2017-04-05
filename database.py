@@ -8,7 +8,7 @@ class Database:
 
     def __init__(self, database_name, sql_script_name, database_path=None):
         if self.__shared_state is None:
-            if database_path is not None and sys.path.exists(database_path):
+            if database_path is not None and os.path.exists(database_path):
                 os.chdir(database_path)
 
             try:
@@ -122,7 +122,7 @@ class Database:
 
     def read_entries(self, table, columns, conditions=None, limit=None, offset=None):
         data = None
-        data_dict = {}
+        data_list = []
         sql = ''
 
         columns = ', '.join(columns)
@@ -142,10 +142,10 @@ class Database:
         else:
             sql = 'SELECT %s FROM %s' % (columns, table)
 
-            if limit is not None:
-                sql += ' LIMIT %s' % (str(limit))
-            if offset is not None:
-                sql += ' OFFSET %s' % (str(offset))
+        if limit is not None:
+            sql += ' LIMIT %s' % (str(limit))
+        if offset is not None:
+            sql += ' OFFSET %s' % (str(offset))
 
         try:
             query = self.c.execute(sql)
@@ -154,9 +154,9 @@ class Database:
             print("Error: %s :" % e.args[0])
 
         else:
-            data = self.c.fetchone()
+            for data in self.c.fetchall():
+                data_list.append({})
+                for key in data.keys():
+                    data_list[len(data_list)-1][key] = data[key]
 
-            for key in data.keys():
-                data_dict[key] = data[key]
-
-        return data_dict
+        return data_list
