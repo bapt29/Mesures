@@ -27,9 +27,6 @@ class Database:
         else:
             self.__dict__ = self.__shared_state
 
-    def __del__(self):
-        self.db.close()
-
     def init_database(self, script_name):
         try:
             file = open(script_name, 'r')
@@ -54,15 +51,15 @@ class Database:
             self.db.commit()
 
     # useful or not?
-    def write_entry(self, table, **kwargs):
+    def write_entry(self, table, entry):
 
-        columns = ', '.join(kwargs.keys())
-        placeholders = ':'+', :'.join(kwargs.keys())
+        columns = ', '.join(entry.keys())
+        placeholders = ':'+', :'.join(entry.keys())
 
         sql = 'INSERT INTO %s (%s) VALUES (%s)' % (table, columns, placeholders)
 
         try:
-            self.c.execute(sql, kwargs)
+            self.c.execute(sql, entry)
 
         except sqlite3.Error as e:
             print("Error: %s :" % e.args[0])
