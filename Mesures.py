@@ -12,14 +12,14 @@ class Mesures:
             setattr(self, sensor, None)
 
         for name, value in configuration.items():
-            setattr(self, name, value)
+            setattr(self, '__' + name, value)
 
         self.__bus = smbus.SMBus(1)
         self.__adcdac = ADCDACPi()
         self.__adcdac.set_adc_refvoltage(3.3)
 
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.boucle_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        GPIO.setup(self.__boucle_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
     def __del__(self):
         GPIO.cleanup()
@@ -33,7 +33,7 @@ class Mesures:
         return object.__getattribute__(self, item)
 
     def get_air_humidity(self):
-        data = self.__bus.read_i2c_block_data(self.hih6130_address, 0x00, 4)
+        data = self.__bus.read_i2c_block_data(self.__hih6130_address, 0x00, 4)
 
         msb_humidity = data[0] & 0x3F
         lsb_humidity = data[1]
@@ -43,7 +43,7 @@ class Mesures:
         return air_humidity
 
     def get_air_temperature(self):
-        data = self.__bus.read_i2c_block_data(self.hih6130_address, 0x00, 4)
+        data = self.__bus.read_i2c_block_data(self.__hih6130_address, 0x00, 4)
 
         msb_temperature = data[2]
         lsb_temperature = data[3]
@@ -53,7 +53,7 @@ class Mesures:
         return air_temperature
 
     def get_soil_temperature(self):
-        data = self.__bus.read_i2c_block_data(self.tmp102_address, 0x00, 2)
+        data = self.__bus.read_i2c_block_data(self.__tmp102_address, 0x00, 2)
 
         soil_temperature = (data[0] << 8 | data[1]) >> 4
         soil_temperature *= 0.0625
@@ -61,18 +61,18 @@ class Mesures:
         return soil_temperature
 
     def get_soil_moisture(self):
-        soil_moisture = self.__adcdac.read_adc_voltage(self.soil_moisture_input, 0)
+        soil_moisture = self.__adcdac.read_adc_voltage(self.__soil_moisture_input, 0)
 
         soil_moisture = (3.3 - soil_moisture) / 3.3 * 100
 
         return soil_moisture
 
     def get_raindrop(self):
-        raindrop = self.__adcdac.read_adc_voltage(self.raindrop_input, 0)
+        raindrop = self.__adcdac.read_adc_voltage(self.__raindrop_input, 0)
 
         raindrop = (3.3 - raindrop) / 3.3 * 100
 
         return raindrop
 
     def get_boucle(self):
-        return GPIO.input(self.boucle_pin)
+        return GPIO.input(self.__boucle_pin)
