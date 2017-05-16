@@ -34,6 +34,7 @@ class Database:
         except IOError:
             print("Error: SQL file does not exist")
             sys.exit()
+
         else:
             script = file.read()
 
@@ -67,6 +68,7 @@ class Database:
         else:
             self.db.commit()
 
+    #TODO: put the table name in the entries_list (entries in different table)
     def write_entries(self, table, entries_list):
 
         for entry in entries_list:
@@ -104,7 +106,7 @@ class Database:
         sql = 'SELECT %s FROM %s WHERE %s' % (columns, table, conditions)
 
         try:
-            query = self.c.execute(sql)
+            self.c.execute(sql)
 
         except sqlite3.Error as e:
             print("Error: %s :" % e.args[0])
@@ -121,7 +123,7 @@ class Database:
         data = None
         data_list = []
         sql = ''
-
+        columns_size = len(columns)
         columns = ', '.join(columns)
 
         if conditions is not None:
@@ -145,16 +147,21 @@ class Database:
             sql += ' OFFSET %s' % (str(offset))
 
         try:
-            query = self.c.execute(sql)
+            self.c.execute(sql)
 
         except sqlite3.Error as e:
             print("Error: %s :" % e.args[0])
 
         else:
             for data in self.c.fetchall():
-                data_list.append({})
-                for key in data.keys():
-                    data_list[len(data_list)-1][key] = data[key]
+                if columns_size == 1:
+                    for key in data.keys():
+                        data_list.append(data[key])
+                else:
+                    data_list.append({})
+
+                    for key in data.keys():
+                        data_list[len(data_list)-1][key] = data[key]
 
         return data_list
 
