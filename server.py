@@ -1,9 +1,11 @@
 import threading
 import socketserver
 import os
+import sys
+from daemon import Daemon
 from configuration import Configuration
 from afficheur import Afficheur
-from time import sleep
+
 
 def getMacAddress(interface='eth0'):
     adressemac = str(os.popen('ifconfig ' + interface + ' | grep -o -E \'([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}\'').readline())
@@ -20,43 +22,37 @@ def getMacAddress(interface='eth0'):
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
-        data = self.request.recv(1024)
+        while True:
+            data = self.request.recv(1024)
 
-        mac_address = str()
+            if not data:
+                return
 
-        try:
-            mac_address = "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}".format(data[0], data[1], data[2], data[3], data[4], data[5])
-            mac_address = mac_address.upper()
-        except IndexError:
-            print("no mac address")
-
-        if mac_address == getMacAddress() or mac_address == getMacAddress('wlan0'):
-            if data[6] == 0x00:  # Reboot
-                #os.popen('reboot')
+            if data[0] == 0x01:  # Reboot
+                os.popen('reboot -f')
                 print("Reboot")
 
-            elif data[6] == 0x01:  # Reset
-                #os.popen('/opt/switch_part.sh')
+            elif data[0] == 0x02:  # Reset
+                os.popen('/opt/switch_part.sh')
                 print("Reset")
 
-            elif data[6] == 0x02:  # Display message
+            elif data[0] == 0x03:  # Display message
                 print("Message")
                 config = Configuration('config.ini', '/var')
                 aff = Afficheur(config.read_config('Afficheur', 'ip_address'), int(config.read_config('Afficheur', 'port')))
-                aff.msg(data[7:30].decode())
+                aff.msg(data[1:].decode())
 
-            elif data[6] == 0x06:
+            elif data[0] == 0x04:
                 print("List file")
-                os.popen('python3.4 ListFile.py')
+                os.popen('python3.4 /opt/ListFile.py')
 
             else:
                 print("Unknown function code")
 
-
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
-if __name__ == "__main__":
+def serv():
     HOST, PORT = '', 1995
     socketserver.TCPServer.allow_reuse_address = True
     server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
@@ -68,3 +64,24 @@ if __name__ == "__main__":
     print("with ip :", ip)
     print("with port :", port)
     server.serve_forever()
+
+class MyDaemon(Daemon):
+    def run(self):
+        serv()
+
+if __name__ == "__main__":
+    daemon = MyDaemon('/tmp/server-dialogue.pid')
+    if len(sys.argv) == 2:
+        if sys.argv[1] == 'start':
+            daemon.start()
+        elif sys.argv[1] == 'stop':
+            daemon.stop()
+        elif sys.argv[1] == 'restart':
+            daemon.restart()
+        else:
+            print("unknown command")
+            sys.exit(2)
+        sys.exit(0)
+    else:
+        print("usage %s start|stop|restart" % sys.argv[0])
+        sys.exit(2)
