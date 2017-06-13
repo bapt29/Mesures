@@ -1,11 +1,9 @@
 import smbus
-import RPi.GPIO as GPIO
 
 from ABE_ADCDACPi import ADCDACPi
 
+
 class Mesures:
-    __count_raindrop = 0
-    __count_soil_moisture = 0
 
     def __init__(self, sensors, configuration):
 
@@ -18,12 +16,6 @@ class Mesures:
         self.__bus = smbus.SMBus(1)
         self.__adcdac = ADCDACPi()
         self.__adcdac.set_adc_refvoltage(3.3)
-
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.boucle_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-
-    def __del__(self):
-        GPIO.cleanup(self.boucle_pin)
 
     def __getattribute__(self, item):
         method_name = 'get_{}'.format(item)
@@ -71,42 +63,9 @@ class Mesures:
         return soil_temperature
 
     def get_soil_moisture(self):
-        try:
-            soil_moisture = self.__adcdac.read_adc_voltage(self.soil_moisture_input, 0)
-        except IOError:
-            return -250.0
+        soil_moisture = self.__adcdac.read_adc_voltage(self.soil_moisture_input, 0)
 
-        if soil_moisture < 0.5 and Mesures.__count_soil_moisture <= 10:
-            Mesures.__count_soil_moisture += 1
-
-            return (3.3 - soil_moisture) / 3.3 * 100
-        elif Mesures.__count_soil_moisture > 10 and soil_moisture < 0.7:
-            return -250.0
-        else:
-            Mesures.__count_soil_moisture = 0
-            return (3.3 - soil_moisture) / 3.3 * 100
+        return (3.3 - soil_moisture) / 3.3 * 100
 
     def get_raindrop(self):
-        try:
-            raindrop = self.__adcdac.read_adc_voltage(self.raindrop_input, 0)
-        except IOError:
-            Mesures.__count_raindrop += 1
-            return -250.0
-
-        if raindrop < 0.5 and Mesures.__count_raindrop <= 10:
-            Mesures.__count_raindrop += 1
-
-            return (3.3 - raindrop) / 3.3 * 100
-        elif Mesures.__count_raindrop > 10 and raindrop < 0.7:
-            return -250.0
-        else:
-            Mesures.__count_raindrop = 0
-            return (3.3 - raindrop) / 3.3 * 100
-
-    def get_boucle(self):
-        return GPIO.input(self.boucle_pin)
-
-    def event_boucle(self):
-        GPIO.wait_for_edge(18, GPIO.RISING, bouncetime=300)
-
-        return True
+        return ((self.__adcdac.read_adc_voltage(self.raindrop_input, 0) - 1.9) / -0.02)
