@@ -1,9 +1,12 @@
 import struct
 import socket
 import os
+import sys
+from time import sleep
 from Mesures import Mesures
 from database import Database
 from configuration import Configuration
+from daemon import Daemon
 
 class Client:
 
@@ -11,7 +14,7 @@ class Client:
         self.__socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.__HwAddr = self.getHwAddr()
-        self.__config = Configuration('config.ini')
+        self.__config = Configuration('config.ini', '/var')
 
         try:
             self.__socket.connect((self.__config.read_config('Server', 'ip_address'), int(self.__config.read_config('Server', 'port'))))
@@ -51,26 +54,59 @@ class Client:
     def datasensor(self):
         data_size = 0
 
-        #MAC ADDR
+        # MAC ADDR
         for element in self.__HwAddr:
             self.__data.append(element)
         data_size += 6
 
-        #Function Code
+        # Function Code
         self.__data.append(0x01)
         data_size += 1
 
-        #Number of sensors
+        # Number of sensors
         self.__data.append(len(self.__sensors))
         data_size += 1
 
-        #SENSOR id + value
+        # SENSOR id + value
         for dictionary in self.__sensors:
             self.__data.append(dictionary['id'])
             self.__data += struct.pack("f", getattr(self.__mesures, dictionary['name']))
             data_size += 5
 
-        self.send_data(data_size)
+        send_response = self.send_data(data_size)
+
+        if send_response < 0:
+           if send_response == -1:
+               self.store_datasensor()
+           elif send_response == -2:
+               self.datasensor()
+
+    def data_traffic(self):
+        data_size = 0
+
+        # MAC ADDR
+        for element in self.__HwAddr:
+            self.__data.append(element)
+        data_size += 6
+
+        # Function Code
+        self.__data.append(0x02)
+        data_size += 1
+
+        # Traffic between two measure
+        self.__data += struct.pack('i', int(self.__database.read_entries('Traffic', ['traffic_count'])[0]))
+
+        data_size += 4
+
+        send_response = self.send_data(data_size)
+
+        if send_response < 0:
+           if send_response == -1:
+               self.store_datasensor()
+           elif send_response == -2:
+               self.data_traffic()
+        else:
+            self.__database.edit_entry('Traffic', 'Traffic_count', 0)
 
     def store_datasensor(self):
         entries = []
@@ -86,27 +122,58 @@ class Client:
         while totalsent < size:
             sent = self.__socket.send(self.__data[totalsent:])
 
-            if sent == 0:
+            if sent == 0:  # Connection error
                 try:
                     self.__socket.close()
                     self.__socket.connect((self.__config.read_config('Server', 'ip_address'), int(self.__config.read_config('Server', 'port'))))
-                except OSError:
-                    self.store_datasensor()
-                else:
+                except OSError:  # Can't reconnect
                     self.__data = bytearray()
+                    return -1
+                else:  # Reconnected
+                    self.__data = bytearray()
+                    return -2
+
                     self.datasensor()
 
             totalsent += sent
 
         self.__data = bytearray()
+        return 1
 
-if __name__ == "__main__":
-    client = Client()
-    config = Configuration('config.ini')
 
-    client.initialisation()
+def serv():
+    clt = Client()
+    config = Configuration('config.ini', '/var/')
+
+    clt.initialisation()
+
+    sleep(0.5)
 
     while True:
-        client.datasensor()
+        clt.datasensor()
+        sleep(0.5)
+        clt.data_traffic()
+
 
         sleep(int(config.read_config('Main', 'measurement_interval')))
+
+class MyDaemon(Daemon):
+    def run(self):
+        serv()
+
+if __name__ == "__main__":
+    daemon = MyDaemon('/tmp/client.pid')
+    if len(sys.argv) == 2:
+        if sys.argv[1] == 'start':
+            daemon.start()
+        elif sys.argv[1] == 'stop':
+            daemon.stop()
+        elif sys.argv[1] == 'restart':
+            daemon.restart()
+        else:
+            print("unknown command")
+            sys.exit(2)
+        sys.exit(0)
+    else:
+        print("usage %s start|stop|restart" % sys.argv[0])
+        sys.exit(2)
