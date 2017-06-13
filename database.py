@@ -51,7 +51,6 @@ class Database:
         else:
             self.db.commit()
 
-    # useful or not?
     def write_entry(self, table, entry):
 
         columns = ', '.join(entry.keys())
@@ -165,18 +164,46 @@ class Database:
 
         return data_list
 
-    def increment_entry(self, table, column, conditions):
+    def increment_entry(self, table, column, conditions=None):
         tab = []
 
-        for key, value in conditions.items():
-            if type(value) is str:
-                tab.append('%s = "%s"' % (key, value))
-            else:
-                tab.append('%s = %s' % (key, str(value)))
+        if conditions is not None:
+            for key, value in conditions.items():
+                if type(value) is str:
+                    tab.append('%s = "%s"' % (key, value))
+                else:
+                    tab.append('%s = %s' % (key, str(value)))
 
-        conditions = ' AND '.join(tab)
+            conditions = ' AND '.join(tab)
 
-        sql = 'UPDATE %s SET %s = %s + 1 WHERE %s' % (table, column, column, conditions)
+            sql = 'UPDATE %s SET %s = %s + 1 WHERE %s' % (table, column, column, conditions)
+        else:
+            sql = 'UPDATE %s SET %s = %s + 1' % (table, column, column)
+
+        try:
+            query = self.c.execute(sql)
+
+        except sqlite3.Error as e:
+            print("Error: %s :" % e.args[0])
+
+        else:
+            self.db.commit()
+
+    def edit_entry(self, table, column, entry_value, conditions=None):
+        tab = []
+
+        if conditions is not None:
+            for key, value in conditions.items():
+                if type(value) is str:
+                    tab.append('%s = "%s"' % (key, value))
+                else:
+                    tab.append('%s = %s' % (key, str(value)))
+
+            conditions = ' AND '.join(tab)
+
+            sql = 'UPDATE %s SET %s = %s WHERE %s' % (table, column, entry_value, conditions)
+        else:
+            sql = 'UPDATE %s SET %s = %s' % (table, column, entry_value)
 
         try:
             query = self.c.execute(sql)
